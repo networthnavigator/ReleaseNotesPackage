@@ -1,6 +1,6 @@
 {
   "name": "release-notes-panel",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "peerDependencies": {
     "@angular/animations": "^19.2.0",
     "@angular/common": "^19.2.0",

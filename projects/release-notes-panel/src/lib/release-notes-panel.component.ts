@@ -538,6 +538,16 @@ export class ReleaseNotesPanelComponent {
         return next;
       });
     });
+    effect(() => {
+      const q = this.searchQuery().trim();
+      if (q === '') return;
+      const past = this.filteredPastReleases();
+      const newer = this.filteredNewerReleases();
+      const allKeys = new Set<string>();
+      past.forEach((r) => allKeys.add(this.service.releaseKey(r)));
+      newer.forEach((r) => allKeys.add(this.service.releaseKey(r)));
+      this.expandedKeys.set(allKeys);
+    });
   }
 
   getSectionTitle(): string {
