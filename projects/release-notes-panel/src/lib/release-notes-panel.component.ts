@@ -4,11 +4,15 @@ import {
   signal,
   input,
   effect,
+  computed,
   ViewEncapsulation,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import type { SafeHtml } from '@angular/platform-browser';
 import { DomSanitizer } from '@angular/platform-browser';
 import { marked } from 'marked';
@@ -25,7 +29,14 @@ import {
 @Component({
   selector: 'lib-release-notes-panel, release-notes-drawer',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatChipsModule],
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatCheckboxModule,
+  ],
   encapsulation: ViewEncapsulation.None,
   animations: [
     trigger('drawerSlide', [
@@ -74,6 +85,37 @@ import {
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
+        @if (service.releaseNotesData()?.releases?.length) {
+          <div class="rn-filters">
+            <mat-form-field class="rn-search-field" appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Search</mat-label>
+              <input
+                matInput
+                type="text"
+                [value]="searchQuery()"
+                (input)="onSearchInput($event)"
+                placeholder="Title or content…"
+              />
+              <span matPrefix class="rn-search-icon">
+                <span class="material-symbols-outlined">search</span>
+              </span>
+            </mat-form-field>
+            <div class="rn-type-filters">
+              <label class="rn-checkbox-label">
+                <mat-checkbox [checked]="filterNew()" (change)="filterNew.set($event.checked)" />
+                <span>NEW</span>
+              </label>
+              <label class="rn-checkbox-label">
+                <mat-checkbox [checked]="filterUpdate()" (change)="filterUpdate.set($event.checked)" />
+                <span>UPDATE</span>
+              </label>
+              <label class="rn-checkbox-label">
+                <mat-checkbox [checked]="filterBug()" (change)="filterBug.set($event.checked)" />
+                <span>BUG</span>
+              </label>
+            </div>
+          </div>
+        }
         <div class="rn-drawer-content">
           @if (!service.releaseNotesData()) {
             <p class="rn-loading">Loading…</p>
@@ -84,7 +126,7 @@ import {
               <section class="rn-section rn-section-newer">
                 <h3 class="rn-section-title">Features available in newer versions</h3>
                 <p class="rn-upgrade-hint">Upgrade to the latest version to access the following improvements.</p>
-                @for (release of service.newerReleases(); track releaseVersionKey(release)) {
+                @for (release of filteredNewerReleases(); track releaseVersionKey(release)) {
                   <div class="rn-release-block" [class.rn-collapsed]="!isExpanded(release)">
                     <button
                       type="button"
@@ -129,11 +171,11 @@ import {
                 }
               </section>
             }
-            @if (service.pastReleases().length > 0) {
+            @if (filteredPastReleases().length > 0) {
               <section class="rn-section">
                 <h3 class="rn-section-title">{{ getSectionTitle() }}</h3>
                 <p class="rn-section-hint">Releases up to your current version. Expand a release to see its notes.</p>
-                @for (release of service.pastReleases(); track releaseVersionKey(release)) {
+                @for (release of filteredPastReleases(); track releaseVersionKey(release)) {
                   <div class="rn-release-block" [class.rn-collapsed]="!isExpanded(release)">
                     <button
                       type="button"
@@ -226,6 +268,47 @@ import {
         font-size: 1.25rem;
         font-weight: 500;
         color: rgba(0, 0, 0, 0.87);
+      }
+      .rn-filters {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px 16px;
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .rn-search-field {
+        flex: 1;
+        min-width: 160px;
+        font-size: 0.95rem;
+      }
+      .rn-search-field .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+      .rn-search-icon {
+        display: inline-flex;
+        margin-right: 8px;
+        color: rgba(0, 0, 0, 0.5);
+      }
+      .rn-search-icon .material-symbols-outlined {
+        font-size: 20px;
+      }
+      .rn-type-filters {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .rn-checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: rgba(0, 0, 0, 0.87);
+        user-select: none;
       }
       .rn-drawer-content {
         flex: 1;
@@ -414,6 +497,26 @@ export class ReleaseNotesPanelComponent {
   /** Which release keys are expanded (default: newest per section). */
   private expandedKeys = signal<Set<string>>(new Set());
 
+  /** Search filter: matches against note title and body (plain text). */
+  searchQuery = signal('');
+
+  /** Type filters: which note types to show (default all on). */
+  filterNew = signal(true);
+  filterUpdate = signal(true);
+  filterBug = signal(true);
+
+  /** Past releases with notes filtered by search and type; releases with no matching notes are hidden. */
+  readonly filteredPastReleases = computed(() => {
+    const releases = this.service.pastReleases();
+    return this.filterReleases(releases);
+  });
+
+  /** Newer releases with notes filtered by search and type; releases with no matching notes are hidden. */
+  readonly filteredNewerReleases = computed(() => {
+    const releases = this.service.newerReleases();
+    return this.filterReleases(releases);
+  });
+
   constructor() {
     effect(() => {
       const v = this.currentVersion();
@@ -464,6 +567,40 @@ export class ReleaseNotesPanelComponent {
       else next.add(key);
       return next;
     });
+  }
+
+  onSearchInput(event: Event): void {
+    const el = event.target as HTMLInputElement;
+    this.searchQuery.set(el?.value ?? '');
+  }
+
+  /**
+   * Filter releases by search (title + body) and by type checkboxes.
+   * Returns releases with only matching notes; releases with zero matches are omitted.
+   */
+  private filterReleases(releases: Release[]): Release[] {
+    const q = this.searchQuery().trim().toLowerCase();
+    const allowNew = this.filterNew();
+    const allowUpdate = this.filterUpdate();
+    const allowBug = this.filterBug();
+    const result: Release[] = [];
+    for (const release of releases) {
+      const notes = (release.notes ?? []).filter((note) => {
+        const typeOk =
+          (note.type === 'NEW' && allowNew) ||
+          (note.type === 'UPDATE' && allowUpdate) ||
+          (note.type === 'BUG' && allowBug);
+        if (!typeOk) return false;
+        if (q === '') return true;
+        const title = (note.title ?? '').toLowerCase();
+        const body = this.getNoteBody(note).toLowerCase();
+        return title.includes(q) || body.includes(q);
+      });
+      if (notes.length > 0) {
+        result.push({ ...release, notes });
+      }
+    }
+    return result;
   }
 
   /** Raw markdown body; supports legacy "content" from old JSON. */
