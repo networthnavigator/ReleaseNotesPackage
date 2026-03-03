@@ -27,6 +27,19 @@ export class ReleaseNotesPanelService {
   /** When true, open the drawer automatically when new releases exist that the user has not seen. */
   autoOpenOnNewRelease = false;
 
+  /** Optional resolver for image paths (e.g. from editor in-memory store). When set, used before imageBaseUrl. */
+  private imageUrlResolver: ((path: string) => string | null) | null = null;
+
+  setImageUrlResolver(resolver: ((path: string) => string | null) | null): void {
+    this.imageUrlResolver = resolver;
+  }
+
+  /** Resolve an image path to a URL. Returns null if no resolver or resolver returns null (caller can fall back to base URL). */
+  resolveImageUrl(path: string): string | null {
+    if (this.imageUrlResolver) return this.imageUrlResolver(path);
+    return null;
+  }
+
   readonly isOpen = this.openState.asReadonly();
   readonly currentAppVersion = this.currentVersion.asReadonly();
   /** URL the notes were loaded from (e.g. for deriving image base). */

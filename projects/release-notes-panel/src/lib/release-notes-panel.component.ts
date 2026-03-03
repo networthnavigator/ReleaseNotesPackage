@@ -630,28 +630,33 @@ export class ReleaseNotesPanelComponent {
     return dir.startsWith('http') || dir.startsWith('/') ? dir : '/' + dir;
   }
 
-  /** Rendered note body as safe HTML (markdown applied). Inline image srcs are rewritten with image base. */
+  /** Rendered note body as safe HTML (markdown applied). Inline image srcs are rewritten via resolver or image base. */
   getNoteBodyHtml(note: ReleaseNote & { note_md?: string; content?: string }): SafeHtml {
     const raw = this.getNoteBody(note);
     if (raw == null || raw === '') return this.sanitizer.bypassSecurityTrustHtml('');
     let html = marked.parse(raw, { async: false });
     html = typeof html === 'string' ? html : '';
     const base = this.getEffectiveImageBase();
-    if (base) {
-      const baseSlash = base.endsWith('/') ? base : base + '/';
-      html = html.replace(
-        /<img([^>]*)\ssrc="([^"]+)"/gi,
-        (_, attrs, src) => {
-          if (src.startsWith('http') || src.startsWith('data:')) return `<img${attrs} src="${src}"`;
+    const baseSlash = base ? (base.endsWith('/') ? base : base + '/') : '';
+    html = html.replace(
+      /<img([^>]*)\ssrc="([^"]+)"/gi,
+      (_, attrs, src) => {
+        if (src.startsWith('http') || src.startsWith('data:')) return `<img${attrs} src="${src}"`;
+        const fromResolver = this.service.resolveImageUrl(src);
+        if (fromResolver) return `<img${attrs} src="${fromResolver}"`;
+        if (baseSlash) {
           const resolved = src.startsWith('/') ? baseSlash + src.slice(1) : baseSlash + src;
           return `<img${attrs} src="${resolved}"`;
         }
-      );
-    }
+        return `<img${attrs} src="${src}"`;
+      }
+    );
     return this.sanitizer.bypassSecurityTrustHtml(html);
   }
 
   imageUrl(path: string): string {
+    const fromResolver = this.service.resolveImageUrl(path);
+    if (fromResolver) return fromResolver;
     const base = this.getEffectiveImageBase();
     if (!base) return path;
     const b = base.endsWith('/') ? base : base + '/';
