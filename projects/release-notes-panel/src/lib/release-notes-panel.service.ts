@@ -24,8 +24,12 @@ export class ReleaseNotesPanelService {
   /** localStorage key for tracking which releases have been viewed. */
   private storageKey = DEFAULT_STORAGE_KEY;
 
+  private readonly autoOpenOnNewReleaseFlag = signal(false);
+
   /** When true, open the drawer automatically when new releases exist that the user has not seen. */
-  autoOpenOnNewRelease = false;
+  setAutoOpenOnNewRelease(value: boolean): void {
+    this.autoOpenOnNewReleaseFlag.set(value);
+  }
 
   /** Optional resolver for image paths (e.g. from editor in-memory store). When set, used before imageBaseUrl. */
   private imageUrlResolver: ((path: string) => string | null) | null = null;
@@ -131,7 +135,7 @@ export class ReleaseNotesPanelService {
   }
 
   private checkAutoOpen(): void {
-    if (!this.autoOpenOnNewRelease) return;
+    if (!this.autoOpenOnNewReleaseFlag()) return;
     const newer = this.newerReleases();
     if (newer.length === 0) return;
     const viewed = this.getViewedKeys();

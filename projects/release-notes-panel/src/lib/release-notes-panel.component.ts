@@ -93,7 +93,7 @@ import {
                 matInput
                 type="text"
                 [value]="searchQuery()"
-                (input)="onSearchInput($event)"
+                (input)="applySearchQueryFromInput($event)"
                 placeholder="Title or content…"
               />
               <span matPrefix class="rn-search-icon">
@@ -482,28 +482,28 @@ import {
   ],
 })
 export class ReleaseNotesPanelComponent {
-  readonly service = inject(ReleaseNotesPanelService);
+  protected readonly service = inject(ReleaseNotesPanelService);
   private readonly sanitizer = inject(DomSanitizer);
 
   /** Current application version for version-aware grouping. */
-  currentVersion = input<string | null>(null);
+  readonly currentVersion = input<string | null>(null);
 
   /** When true, drawer opens automatically when new releases exist that the user has not seen. */
-  autoOpenOnNewRelease = input<boolean>(false);
+  readonly autoOpenOnNewRelease = input<boolean>(false);
 
   /** Base URL for resolving relative image paths (e.g. from notes JSON folder). */
-  imageBaseUrl = signal<string>('');
+  private readonly imageBaseUrl = signal<string>('');
 
   /** Which release keys are expanded (default: newest per section). */
-  private expandedKeys = signal<Set<string>>(new Set());
+  private readonly expandedKeys = signal<Set<string>>(new Set());
 
   /** Search filter: matches against note title and body (plain text). */
-  searchQuery = signal('');
+  protected readonly searchQuery = signal('');
 
   /** Type filters: which note types to show (default all on). */
-  filterNew = signal(true);
-  filterUpdate = signal(true);
-  filterBug = signal(true);
+  protected readonly filterNew = signal(true);
+  protected readonly filterUpdate = signal(true);
+  protected readonly filterBug = signal(true);
 
   /** Past releases with notes filtered by search and type; releases with no matching notes are hidden. */
   readonly filteredPastReleases = computed(() => {
@@ -523,8 +523,7 @@ export class ReleaseNotesPanelComponent {
       this.service.setCurrentVersion(v ?? null);
     });
     effect(() => {
-      const flag = this.autoOpenOnNewRelease();
-      this.service.autoOpenOnNewRelease = flag;
+      this.service.setAutoOpenOnNewRelease(this.autoOpenOnNewRelease());
     });
     effect(() => {
       const past = this.service.pastReleases();
@@ -550,26 +549,26 @@ export class ReleaseNotesPanelComponent {
     });
   }
 
-  getSectionTitle(): string {
+  protected getSectionTitle(): string {
     return this.service.hasCurrentVersion() ? 'Your version history' : "What's new";
   }
 
-  releaseVersionKey(release: Release): string {
+  protected releaseVersionKey(release: Release): string {
     return release.version ?? release.date ?? 'draft';
   }
 
-  releaseHeader(release: Release): string {
+  protected releaseHeader(release: Release): string {
     if (release.version && release.date) return `${release.version} — ${release.date}`;
     if (release.version) return release.version;
     if (release.date) return release.date;
     return 'Unreleased';
   }
 
-  isExpanded(release: Release): boolean {
+  protected isExpanded(release: Release): boolean {
     return this.expandedKeys().has(this.service.releaseKey(release));
   }
 
-  toggleRelease(release: Release): void {
+  protected toggleRelease(release: Release): void {
     const key = this.service.releaseKey(release);
     this.expandedKeys.update((set) => {
       const next = new Set(set);
@@ -579,7 +578,7 @@ export class ReleaseNotesPanelComponent {
     });
   }
 
-  onSearchInput(event: Event): void {
+  protected applySearchQueryFromInput(event: Event): void {
     const el = event.target as HTMLInputElement;
     this.searchQuery.set(el?.value ?? '');
   }
@@ -631,7 +630,7 @@ export class ReleaseNotesPanelComponent {
   }
 
   /** Rendered note body as safe HTML (markdown applied). Inline image srcs are rewritten via resolver or image base. */
-  getNoteBodyHtml(note: ReleaseNote & { note_md?: string; content?: string }): SafeHtml {
+  protected getNoteBodyHtml(note: ReleaseNote & { note_md?: string; content?: string }): SafeHtml {
     const raw = this.getNoteBody(note);
     if (raw == null || raw === '') return this.sanitizer.bypassSecurityTrustHtml('');
     let html = marked.parse(raw, { async: false });
@@ -654,7 +653,7 @@ export class ReleaseNotesPanelComponent {
     return this.sanitizer.bypassSecurityTrustHtml(html);
   }
 
-  imageUrl(path: string): string {
+  protected imageUrl(path: string): string {
     const fromResolver = this.service.resolveImageUrl(path);
     if (fromResolver) return fromResolver;
     const base = this.getEffectiveImageBase();
